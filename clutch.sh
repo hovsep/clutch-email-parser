@@ -1,34 +1,52 @@
-BASE_URL="https://clutch.co/web-designers?sort_bef_combine=field_pp_page_sponsor_sponsorship%20DESC&field_pp_min_project_size_value=All&field_pp_hrly_rate_range_value=%2450%20-%20%2499&field_pp_size_people_value=All&field_pp_cs_small_biz_value=&field_pp_cs_midmarket_value=&field_pp_cs_enterprise_value=&client_focus=&field_pp_if_advertising_value=&field_pp_if_automotive_value=&field_pp_if_arts_value=&field_pp_if_bizservices_value=&field_pp_if_conproducts_value=&field_pp_if_education_value=&field_pp_if_natural_resources_value=&field_pp_if_finservices_value=&field_pp_if_gambling_value=&field_pp_if_gaming_value=&field_pp_if_government_value=&field_pp_if_healthcare_value=&field_pp_if_hospitality_value=&field_pp_if_it_value=&field_pp_if_legal_value=&field_pp_if_manufacturing_value=&field_pp_if_media_value=&field_pp_if_nonprofit_value=&field_pp_if_realestate_value=&field_pp_if_retail_value=&field_pp_if_telecom_value=&field_pp_if_transportation_value=&field_pp_if_utilities_value=&field_pp_if_other_value=&industry_focus=&country=All&state=&distance%5Bpostal_code%5D=&distance%5Bcountry%5D=us&distance%5Bsearch_distance%5D=100&distance%5Bsearch_units%5D=mile&page="
+BASE_URL="https://clutch.co/web-developers&page="
 
-for i in `seq 0 1`;
+for i in `seq 0 0`;
 do
+echo "Processing page $i"
 #Download page
-wget -O ./p$i.html $BASE_URL$i
+wget --quiet -nv -O ./p$i.html $BASE_URL$i
 
-#Extract email-decode scripts
-cat ./p$i.html | ~/go/bin/pup 'script:contains("mailto:") text{}' > ./p$i.scripts.txt
+#Extract company rows
+cat ./p$i.html | ~/go/bin/pup '.provider-row' > ./p$i.companies.html
 
-#Split them into separate files
-csplit --suppress-matched  --quiet --prefix="p$i-" --suffix-format="%03d.js" ./p$i.scripts.txt '/^$/' '{*}'
+#Split rows to separate files
+csplit --quiet --prefix="p$i-company" --suffix-format="%03d.company" ./p$i.companies.html '/^<li class="provider-row">$/' '{*}'
+rm ./p$i.companies.html
+rm ./p$i.html
 done
 
-#Modify scripts
-for script in ./*.js;
+#Loop by each company data
+for company in ./*.company;
 do
-#Remove last line
-sed -i '/mailto/d' $script
-#Find var name
-VARNAME=`cat $script | grep var | cut -d " " -f2 | sort -u`;
 
-#Replace varname
-sed -i -e "s/$VARNAME/email/g" $script
-
-#Remove stuff
-sed -i "s/document.getElementById('email').innerHTML = //g" $script
-
-if [[ -s $script ]];
+if [[ -s $company ]];
     then
-        node -p "`cat $script`" >> emails.txt
+    #Extract name
+    COMPANY_NAME=`cat $company | ~/go/bin/pup '.company-name a text{}'`
+    #Extract rate
+    HOURLY_RATE=`cat $company | ~/go/bin/pup -p '.hourly-rate text{}'`
+
+    #Extract email decoder script
+    cat $company | ~/go/bin/pup 'script:contains("mailto:") text{}' > email.js
+
+    COMPANY_EMAIL=""
+    if [[ -s email.js ]];
+    then
+        #Prepare it
+        sed -i '/mailto/d' email.js
+        sed -i "s/document.getElementById('.*').innerHTML = //g" email.js
+
+        #Execute the script and get original email
+        COMPANY_EMAIL=`node -p "\`cat email.js\`"`
+    fi
+
+    rm ./email.js
+    #Append row to report
+    echo `printf "%s" "\"$COMPANY_NAME\",\"$HOURLY_RATE\",\"$COMPANY_EMAIL\""` >> report.csv
 fi
 
+rm $company
+
 done
+
+echo 'DONE! Data in report.csv'
