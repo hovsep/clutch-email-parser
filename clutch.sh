@@ -1,6 +1,6 @@
-BASE_URL="https://clutch.co/web-developers&page="
+BASE_URL="https://clutch.co/web-designers&page="
 
-for i in `seq 0 0`;
+for i in `seq 0 502`;
 do
 echo "Processing page $i"
 #Download page
@@ -13,6 +13,7 @@ cat ./p$i.html | ~/go/bin/pup '.provider-row' > ./p$i.companies.html
 csplit --quiet --prefix="p$i-company" --suffix-format="%03d.company" ./p$i.companies.html '/^<li class="provider-row">$/' '{*}'
 rm ./p$i.companies.html
 rm ./p$i.html
+sleep 1
 done
 
 #Loop by each company data
